@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gotovka — ИИ-рецепты</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      max-width: 700px;
+      margin: 20px auto;
+      padding: 0 15px;
+      background: #fff;
+      color: #333;
+    }
+    h1 { text-align: center; color: #2e8b57; margin-bottom: 25px; }
+    .main-menu, .healthy-menu, .search-view {
+      text-align: center;
+    }
+    .btn {
+      display: inline-block;
+      width: 90%;
+      max-width: 300px;
+      padding: 14px;
+      margin: 10px 0;
+      font-size: 16px;
+      font-weight: bold;
+      color: white;
+      background: #8fbc8f; /* салатовый */
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn:hover {
+      background: #6f9c6f;
+    }
+    .back-btn {
+      background: #556b2f;
+      margin-top: 25px;
+    }
+    .back-btn:hover {
+      background: #455a24;
+    }
+    .recipe {
+      background: #f9f9f9;
+      padding: 16px;
+      margin: 16px 0;
+      border-radius: 10px;
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+    .loading { color: #7f8c8d; text-align: center; font-style: italic; }
+    .day { 
+      background: #e8f5e9; 
+      padding: 12px; 
+      margin: 12px 0; 
+      border-radius: 8px; 
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>🍲 Gotovka</h1>
+
+  <!-- Главное меню -->
+  <div id="main-menu" class="main-menu">
+    <button class="btn" onclick="showSearch('byName')">По названию</button>
+    <button class="btn" onclick="showSearch('byIngredients')">Из того, что есть</button>
+    <button class="btn" onclick="showHealthyMenu()">Здоровое питание</button>
+  </div>
+
+  <!-- Поиск по названию -->
+  <div id="search-by-name" class="search-view" style="display:none;">
+    <input type="text" id="queryName" placeholder="Например: борщ с говядиной" style="width:90%; padding:12px; margin:10px 0; border:1px solid #ccc; border-radius:6px;"/>
+    <button class="btn" onclick="searchByName()">Найти рецепт</button>
+    <button class="btn back-btn" onclick="showMainMenu()">В главное меню</button>
+    <div id="results"></div>
+  </div>
+
+  <!-- Поиск по ингредиентам -->
+  <div id="search-by-ingredients" class="search-view" style="display:none;">
+    <input type="text" id="queryIngredients" placeholder="Например: яйца, помидоры, лук" style="width:90%; padding:12px; margin:10px 0; border:1px solid #ccc; border-radius:6px;"/>
+    <button class="btn" onclick="searchByIngredients()">Что приготовить?</button>
+    <button class="btn back-btn" onclick="showMainMenu()">В главное меню</button>
+    <div id="results2"></div>
+  </div>
+
+  <!-- Меню здорового питания -->
+  <div id="healthy-menu" class="healthy-menu" style="display:none;">
+    <h2>🥗 Здоровое питание (Пн–Чт)</h2>
+    <div class="day">Понедельник: Овсянка с ягодами + зелёный чай</div>
+    <div class="day">Вторник: Салат из капусты и моркови + куриная грудка на пару</div>
+    <div class="day">Среда: Тушёные овощи + гречка + кефир</div>
+    <div class="day">Четверг: Запечённая рыба + брокколи + лимонная вода</div>
+    <button class="btn back-btn" onclick="showMainMenu()">В главное меню</button>
+  </div>
+
+  <script>
+    const API_KEY = "YCPCqM2sdZa-cV8eQjfQgF5MOd8YzoyH1KXeVudY";
+    const CATALOG_ID = "b1gk7vrlj4a3eqnv8ugg";
+
+    function showMainMenu() {
+      document.getElementById('main-menu').style.display = 'block';
+      document.getElementById('search-by-name').style.display = 'none';
+      document.getElementById('search-by-ingredients').style.display = 'none';
+      document.getElementById('healthy-menu').style.display = 'none';
+    }
+
+    function showSearch(mode) {
+      document.getElementById('main-menu').style.display = 'none';
+      if (mode === 'byName') {
+        document.getElementById('search-by-name').style.display = 'block';
+        document.getElementById('search-by-ingredients').style.display = 'none';
+      } else {
+        document.getElementById('search-by-name').style.display = 'none';
+        document.getElementById('search-by-ingredients').style.display = 'block';
+      }
+      document.getElementById('healthy-menu').style.display = 'none';
+    }
+
+    function showHealthyMenu() {
+      document.getElementById('main-menu').style.display = 'none';
+      document.getElementById('search-by-name').style.display = 'none';
+      document.getElementById('search-by-ingredients').style.display = 'none';
+      document.getElementById('healthy-menu').style.display = 'block';
+    }
+
+    async function askYandexGPT(prompt) {
+      const response = await fetch('https://llm.api.cloud.yandex.net/foundationModels/v1/completion', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Api-Key ${API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          modelUri: `gpt://${CATALOG_ID}/yandexgpt/latest`,
+          completionOptions: {
+            stream: false,
+            temperature: 0.6,
+            maxTokens: "2000"
+          },
+          messages: [
+            {
+              role: "system",
+              text: "Ты — дружелюбный повар-эксперт. Отвечай строго по делу: сначала название блюда, затем список ингредиентов с мерами, затем пошаговый рецепт. Пиши только на русском языке. Без лишнего текста."
+            },
+            {
+              role: "user",
+              text: prompt
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) throw new Error(`Ошибка ${response.status}`);
+      const data = await response.json();
+      if (!data?.result?.alternatives?.[0]?.message?.text) throw new Error("Нет ответа от ИИ");
+      return data.result.alternatives[0].message.text;
+    }
+
+    async function searchByName() {
+      const input = document.getElementById('queryName').value.trim();
+      if (!input) return alert("Введите название блюда");
+      const resDiv = document.getElementById('results');
+      resDiv.innerHTML = '<p class="loading">ИИ готовит рецепт... ⏳</p>';
+      try {
+        const ans = await askYandexGPT(`Рецепт блюда: ${input}`);
+        resDiv.innerHTML = `<div class="recipe">${ans}</div>`;
+      } catch (err) {
+        resDiv.innerHTML = `<p style="color:red;">❌ ${err.message}</p>`;
+      }
+    }
+
+    async function searchByIngredients() {
+      const input = document.getElementById('queryIngredients').value.trim();
+      if (!input) return alert("Введите ингредиенты");
+      const resDiv = document.getElementById('results2');
+      resDiv.innerHTML = '<p class="loading">ИИ думает... ⏳</p>';
+      try {
+        const ans = await askYandexGPT(`Что приготовить из: ${input}? Дай один подробный рецепт.`);
+        resDiv.innerHTML = `<div class="recipe">${ans}</div>`;
+      } catch (err) {
+        resDiv.innerHTML = `<p style="color:red;">❌ ${err.message}</p>`;
+      }
+    }
+
+    // Enter для поиска
+    document.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        if (document.getElementById('search-by-name').style.display === 'block') {
+          searchByName();
+        } else if (document.getElementById('search-by-ingredients').style.display === 'block') {
+          searchByIngredients();
+        }
+      }
+    });
+  </script>
+</body>
+</html>
