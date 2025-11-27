@@ -1,35 +1,382 @@
 import tkinter as tk
-from tkinter import font
+from tkinter import font, messagebox
+from datetime import datetime, date
+import requests
+import json
 
-def on_name_click():
-    print("Выбрано: По названию")
 
-def on_ingredients_click():
-    print("Выбрано: Из того, что есть")
+# настройки YandexGPT
+YANDEX_API_KEY = "YCPCqM2sdZa-cV8eQjfQgF5MOd8YzoyH1KXeVudY"
+YANDEX_CATALOG_ID = "b1gk7vrlj4a3eqnv8ugg"
+API_URL = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
 
-def on_health_click():
-    print("Выбрано: Здоровое питание")
 
-# созд окно
+# инвентарь
+inventory = [
+    {"name": "Молоко", "expiry": "2025-04-20"},
+    {"name": "Яйца", "expiry": "2025-04-18"},
+    {"name": "Хлеб", "expiry": "2025-04-10"},
+    {"name": "Сыр", "expiry": "2025-05-05"}
+]
+
+
+# преобразует '2025-04-20' → date. Возвращает None при ошибке.
+def parse_date(date_str):
+    if not date_str:
+        return None
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+# считает, сколько дней осталось до срока (отрицательно — просрочено)
+def days_until(expiry_str):
+    expiry = parse_date(expiry_str)
+    if expiry is None:
+        return 9999  # без даты — в конец списка
+    return (expiry - date.today()).days
+
+
+# цвет фона: красный — просрочено, зелёный — всё ОК
+def get_bg_color(expiry_str):
+    return "#ffcccc" if days_until(expiry_str) < 0 else "#ccffcc"
+
+
+# отправляет запрос в YandexGPT и возвращает текст ответа
+def ask_yandex_gpt(prompt):
+    headers = {
+        "Authorization": f"Api-Key {YANDEX_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "modelUri": f"gpt://{YANDEX_CATALOG_ID}/yandexgpt/latest",
+        "completionOptions": {
+            "stream": False,
+            "temperature": 0.6,
+            "maxTokens": 2000
+        },
+        "messages": [
+            {
+                "role": "system",
+                "text": "Ты — дружелюбный повар-эксперт. Отвечай строго по делу: сначала название блюда, затем список ингредиентов с мерами, затем пошаговый рецепт. Пиши только на русском языке. Без лишнего текста."
+            },
+            {
+                "role": "user",
+                "text": prompt
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        return data["result"]["alternatives"][0]["message"]["text"]
+    except Exception as e:
+        return f"Ошибка ИИ: {str(e)}"
+
+
+# глобальные ссылки на виджеты (чтобы не было KeyError)
+listbox_widget = None
+name_result_text = None
+ingr_result_text = None
+
+
+# экранные функции
+
+def show_main(): # скрываем все экраны, показываем главное меню
+    for frame in [name_frame, ingr_frame, inventory_frame]:
+        frame.pack_forget()
+    main_frame.pack(fill="both", expand=True)
+
+
+def show_name_search(): # открывает экран поиска рецепта по названию (например, "борщ")
+    main_frame.pack_forget()
+    name_frame.pack(fill="both", expand=True)
+    name_entry.focus_set()
+
+
+def show_ingredient_search(): # открывает экран подбора блюда из имеющихся продуктов (например, "яйца, помидоры")
+    main_frame.pack_forget()
+    ingr_frame.pack(fill="both", expand=True)
+    ingr_entry.focus_set()
+
+
+def show_health_menu(): # показывает заглушку для "Здорового питания" — пока не реализовано
+    messagebox.showinfo("Здоровое питание", "Меню на неделю будет добавлено позже.")
+
+
+def show_inventory(): # открывает экран инвентаря: показывает список продуктов, сортирует по сроку, подсвечивает просроченные
+    main_frame.pack_forget()
+    inventory_frame.pack(fill="both", expand=True)
+
+    # создаём UI при первом вызове
+    global listbox_widget
+    if listbox_widget is None:
+        tk.Label(inventory_frame, text="Инвентарь", font=("Arial", 16, "bold")).pack(pady=(20, 15))
+
+        listbox_frame = tk.Frame(inventory_frame)
+        listbox_frame.pack(pady=10)
+        listbox_widget = tk.Listbox(listbox_frame, width=55, height=8, font=("Arial", 11))
+        listbox_widget.pack(side="left", fill="y")
+        scrollbar = tk.Scrollbar(listbox_frame, orient="vertical", command=listbox_widget.yview)
+        scrollbar.pack(side="right", fill="y")
+        listbox_widget.config(yscrollcommand=scrollbar.set)
+
+        add_btn = tk.Button(
+            inventory_frame,
+            text="Добавить продукт",
+            command=show_add_form,
+            bg="#4CAF50",
+            fg="white",
+            font=("Arial", 10, "bold"),
+            width=20
+        )
+        add_btn.pack(pady=10)
+
+        back_btn = tk.Button(
+            inventory_frame,
+            text="← В главное меню",
+            command=show_main,
+            bg="#556b2f",
+            fg="white",
+            font=("Arial", 10, "bold"),
+            width=20
+        )
+        back_btn.pack(pady=5)
+
+    # обновляем список
+    listbox_widget.delete(0, tk.END)
+    inventory.sort(key=lambda x: days_until(x.get("expiry", "")))
+
+    if inventory:
+        for item in inventory:
+            name = item["name"]
+            expiry = item.get("expiry", "")
+            line = f"{name}"
+            if expiry:
+                line += f" (до {expiry})"
+            listbox_widget.insert(tk.END, line)
+            idx = listbox_widget.size() - 1
+            color = get_bg_color(expiry)
+            listbox_widget.itemconfig(idx, {"bg": color})
+    else:
+        listbox_widget.insert(tk.END, "Пусто")
+
+
+# действия поиска
+
+def search_by_name(): # запускает поиск рецепта по названию через YandexGPT и показывает результат
+    query = name_entry.get().strip()
+    if not query:
+        messagebox.showwarning("Введите название блюда (например: борщ)")
+        return
+
+    name_result_text.config(state="normal")
+    name_result_text.delete("1.0", tk.END)
+    name_result_text.insert("1.0", "ИИ думает...")
+    name_result_text.config(state="disabled")
+    root.update()
+
+    answer = ask_yandex_gpt(f"Рецепт блюда: {query}")
+    name_result_text.config(state="normal")
+    name_result_text.delete("1.0", tk.END)
+    name_result_text.insert("1.0", answer)
+    name_result_text.config(state="disabled")
+
+
+def search_by_ingredients(): # запускает подбор блюда из ингредиентов через YandexGPT и показывает результат
+    query = ingr_entry.get().strip()
+    if not query:
+        messagebox.showwarning("Введите ингредиенты (например: яйца, помидоры)")
+        return
+
+    ingr_result_text.config(state="normal")
+    ingr_result_text.delete("1.0", tk.END)
+    ingr_result_text.insert("1.0", "⏳ ИИ думает...")
+    ingr_result_text.config(state="disabled")
+    root.update()
+
+    answer = ask_yandex_gpt(f"Что приготовить из: {query}? Дай один подробный и реалистичный рецепт.")
+    ingr_result_text.config(state="normal")
+    ingr_result_text.delete("1.0", tk.END)
+    ingr_result_text.insert("1.0", answer)
+    ingr_result_text.config(state="disabled")
+
+
+# форма добавления продукта
+
+def show_add_form(): # открывает модальное окно для добавления нового продукта в инвентарь
+    dialog = tk.Toplevel(root)
+    dialog.title("Добавить продукт")
+    dialog.geometry("500x500")
+    dialog.resizable(False, False)
+    dialog.transient(root)
+    dialog.grab_set()
+
+    tk.Label(dialog, text="Название:", font=("Arial", 10)).pack(pady=(15, 5))
+    name_entry = tk.Entry(dialog, font=("Arial", 11), width=30)
+    name_entry.pack(pady=5)
+
+    tk.Label(dialog, text="Срок (ГГГГ-ММ-ДД):", font=("Arial", 10)).pack(pady=(5, 5))
+    expiry_entry = tk.Entry(dialog, font=("Arial", 11), width=30)
+    expiry_entry.insert(0, date.today().strftime("%Y-%m-%d"))
+    expiry_entry.pack(pady=5)
+
+    def add_product(): # обрабатывает нажатие кнопки "Добавить" внутри формы
+        name = name_entry.get().strip()
+        expiry = expiry_entry.get().strip()
+
+        if not name:
+            messagebox.showwarning("Ошибка", "Введите название продукта")
+            return
+
+        # разрешаем пустую дату — просто не сохраняем
+        if expiry:
+            if parse_date(expiry) is None:
+                messagebox.showwarning("Ошибка", "Неверный формат даты.\nПример: 2025-04-20")
+                return
+        else:
+            expiry = ""
+
+        inventory.append({"name": name, "expiry": expiry})
+        show_inventory()  # обновляем экран
+        dialog.destroy()
+
+    tk.Button(
+        dialog,
+        text="Добавить",
+        command=add_product,
+        bg="#4CAF50",
+        fg="white",
+        font=("Arial", 10, "bold"),
+        width=15
+    ).pack(pady=15)
+
+
+# создание окна
+
 root = tk.Tk()
 root.title("WiseShopPlan")
-root.geometry("400x300")
+root.geometry("520x550")
 root.resizable(False, False)
 
-# название
-header_font = font.Font(family="Arial", size=16, weight="bold")
-header = tk.Label(root, text="WiseShopPlan", font=header_font)
-header.pack(pady=(30, 20))
 
-# кнопки с понятными назвааниями
-btn_font = font.Font(family="Arial", size=12, weight="bold")
-btn_style = {"width": 20, "height": 2, "bg": "#8fbc8f", "fg": "white", "bd": 0, "relief": "flat", "font": btn_font}
-btn_name = tk.Button(root, text="По названию", command=on_name_click, **btn_style)
-btn_name.pack(pady=5)
-btn_ingr = tk.Button(root, text="Из того, что есть", command=on_ingredients_click, **btn_style)
-btn_ingr.pack(pady=5)
-btn_health = tk.Button(root, text="Здоровое питание", command=on_health_click, **btn_style)
-btn_health.pack(pady=5)
+# главное меню
+main_frame = tk.Frame(root)
+main_frame.pack(fill="both", expand=True)
 
+header = tk.Label(
+    main_frame,
+    text="WiseShopPlan",
+    font=("Arial", 18, "bold"),
+    fg="#2e8b57"
+)
+header.pack(pady=(20, 20))
+
+btn_style = {
+    "width": 26,
+    "height": 2,
+    "bg": "#8fbc8f",
+    "fg": "white",
+    "font": ("Arial", 11, "bold"),
+    "bd": 0,
+    "relief": "flat"
+}
+
+tk.Button(main_frame, text="По названию", command=show_name_search, **btn_style).pack(pady=8)
+tk.Button(main_frame, text="Из того, что есть", command=show_ingredient_search, **btn_style).pack(pady=8)
+tk.Button(main_frame, text="Здоровое питание", command=show_health_menu, **btn_style).pack(pady=8)
+tk.Button(main_frame, text="Инвентарь", command=show_inventory, **btn_style).pack(pady=8)
+
+
+# экран По названию
+name_frame = tk.Frame(root)
+
+tk.Label(name_frame, text="Поиск рецепта", font=("Arial", 16, "bold")).pack(pady=(15, 10))
+
+name_entry = tk.Entry(name_frame, font=("Arial", 12), width=36)
+name_entry.pack(pady=5)
+
+tk.Button(
+    name_frame,
+    text="Найти рецепт",
+    command=search_by_name,
+    bg="#4CAF50",
+    fg="white",
+    font=("Arial", 10, "bold"),
+    width=20
+).pack(pady=10)
+
+name_result_text = tk.Text(
+    name_frame,
+    height=12,
+    width=58,
+    font=("Arial", 10),
+    wrap="word",
+    bg="#f9f9f9"
+)
+name_result_text.pack(pady=10, padx=10)
+name_result_text.config(state="disabled")
+
+tk.Button(
+    name_frame,
+    text="← Назад",
+    command=show_main,
+    bg="#556b2f",
+    fg="white",
+    font=("Arial", 10, "bold"),
+    width=15
+).pack(pady=5)
+
+
+# экран из того, что есть
+ingr_frame = tk.Frame(root)
+
+tk.Label(ingr_frame, text="Что приготовить?", font=("Arial", 16, "bold")).pack(pady=(15, 10))
+
+ingr_entry = tk.Entry(ingr_frame, font=("Arial", 12), width=36)
+ingr_entry.pack(pady=5)
+
+tk.Button(
+    ingr_frame,
+    text="Что приготовить?",
+    command=search_by_ingredients,
+    bg="#4CAF50",
+    fg="white",
+    font=("Arial", 10, "bold"),
+    width=20
+).pack(pady=10)
+
+ingr_result_text = tk.Text(
+    ingr_frame,
+    height=12,
+    width=58,
+    font=("Arial", 10),
+    wrap="word",
+    bg="#f9f9f9"
+)
+ingr_result_text.pack(pady=10, padx=10)
+ingr_result_text.config(state="disabled")
+
+tk.Button(
+    ingr_frame,
+    text="Назад",
+    command=show_main,
+    bg="#556b2f",
+    fg="white",
+    font=("Arial", 10, "bold"),
+    width=15
+).pack(pady=5)
+
+
+# инвентарь
+inventory_frame = tk.Frame(root)
+
+
+# запуск
 root.eval('tk::PlaceWindow . center')
-root.mainloop()
+
+if __name__ == "__main__":
+    root.mainloop()
