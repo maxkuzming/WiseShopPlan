@@ -194,7 +194,7 @@ def search_by_ingredients(): # запускает подбор блюда из �
 
     ingr_result_text.config(state="normal")
     ingr_result_text.delete("1.0", tk.END)
-    ingr_result_text.insert("1.0", "⏳ ИИ думает...")
+    ingr_result_text.insert("1.0", "ИИ думает...")
     ingr_result_text.config(state="disabled")
     root.update()
 
