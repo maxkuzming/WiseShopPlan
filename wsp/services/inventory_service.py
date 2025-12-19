@@ -1,5 +1,5 @@
 from typing import List, Optional
-from wsp.core.models import Product, ProductStatus
+from core.models import Product, ProductStatus
 
 
 class InventoryService:

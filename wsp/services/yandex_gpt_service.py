@@ -2,7 +2,7 @@
 import requests
 import json
 from typing import Optional
-from wsp.config import YANDEX_API_KEY, YANDEX_CATALOG_ID, API_URL
+from config import YANDEX_API_KEY, YANDEX_CATALOG_ID, API_URL
 
 
 class YandexGPTService:

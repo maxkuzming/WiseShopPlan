@@ -3,10 +3,10 @@ from tkinter import messagebox
 from datetime import date
 from typing import Optional
 
-from wsp.config import COLORS, FONTS
-from wsp.core.models import Product
-from wsp.services.inventory_service import InventoryService
-from wsp.services.yandex_gpt_service import YandexGPTService
+from config import COLORS, FONTS
+from core.models import Product
+from services.inventory_service import InventoryService
+from services.yandex_gpt_service import YandexGPTService
 
 
 class MainWindow:
