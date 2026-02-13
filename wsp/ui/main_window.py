@@ -14,7 +14,7 @@ class MainWindow:
         self.root = root
         self.root.title("WiseShopPlan")
         self.root.title
-        self.root.geometry("550x550")
+        self.root.geometry("600x600")
         self.root.resizable(False, False)
 
         # Инициализация сервисов
@@ -198,8 +198,74 @@ class MainWindow:
         return COLORS["EXPIRED"] if days is not None and days < 0 else COLORS["VALID"]
 
     def _show_health_menu(self):
-        """Показывает меню здорового питания"""
-        messagebox.showinfo("Здоровое питание", "Меню на неделю будет добавлено позже.")
+        """Показывает экран меню на неделю (Пн–Вс)"""
+        self.main_frame.pack_forget()
+
+        if not hasattr(self, "_health_frame"):
+            self._health_frame = tk.Frame(self.root, bg=COLORS["FRAME_BG"])
+
+            tk.Label(
+                self._health_frame,
+                text="Меню на неделю",
+                font=FONTS["HEADER"],
+                fg=COLORS["PRIMARY_GREEN"],
+                bg=COLORS["FRAME_BG"]
+            ).pack(pady=(20, 15))
+
+            # меню
+            weekly_menu = [
+                ("Понедельник", "Овсянка с ягодами и ложкой мёда", "Суп-пюре из брокколи + куриная грудка на пару",
+                 "Творог с фруктами и орехами"),
+                ("Вторник", "Тост из цельнозернового хлеба с авокадо",
+                 "Салат из свежей капусты, моркови, с кусочком лосося", "Запечённые овощи + тофу"),
+                ("Среда", "Гречневая каша с тыквой", "Чечевичный суп с зеленью", "Йогурт без добавок + груша"),
+                ("Четверг", "Яичница из двух яиц с помидорами и шпинатом", "Бурый рис + тушёная индейка с кабачками",
+                 "Кефир + горсть грецких орехов"),
+                ("Пятница", "Мюсли с йогуртом и бананом", "Салат из свёклы, грецких орехов и козьего сыра",
+                 "Запечённая рыба + салат из огурцов и зелени"),
+                ("Суббота", "Рисовая каша с яблоком и корицей", "Овощной суп + кусочек цельнозернового хлеба",
+                 "Творожная запеканка с ягодами"),
+                ("Воскресенье", "Омлет с овощами и зеленью", "Запечённая курица + картофель и брокколи",
+                 "Ряженка + яблоко")
+            ]
+
+            for day, breakfast, lunch, dinner in weekly_menu:
+                # для дня
+                day_frame = tk.Frame(self._health_frame, bg=COLORS["BACKGROUND"], bd=1, relief="groove")
+                day_frame.pack(pady=8, padx=10, fill="x")
+
+                # день заголовог
+                tk.Label(
+                    day_frame,
+                    text=day,
+                    font=("Arial", 12, "bold"),
+                    bg=COLORS["BACKGROUND"],
+                    anchor="w"
+                ).pack(pady=(5, 3), padx=10, anchor="w")
+
+                # пища
+                for meal, desc in [("Завтрак", breakfast), ("Обед", lunch), ("Ужин", dinner)]:
+                    tk.Label(
+                        day_frame,
+                        text=f"• {meal}: {desc}",
+                        font=("Arial", 10),
+                        bg=COLORS["BACKGROUND"],
+                        anchor="w",
+                        justify="left"
+                    ).pack(padx=15, pady=2, anchor="w")
+
+            # Назад
+            tk.Button(
+                self._health_frame,
+                text="В главное меню",
+                command=self.show_main,
+                bg=COLORS["DARK_GREEN"],
+                fg=COLORS["WHITE"],
+                font=("Arial", 10, "bold"),
+                width=20
+            ).pack(pady=15)
+
+        self._health_frame.pack(fill="both", expand=True)
 
     def show_main(self):
         """Показывает главное меню"""
@@ -277,7 +343,7 @@ class MainWindow:
 
         tk.Button(
             self.inventory_frame,
-            text="← В главное меню",
+            text="В главное меню",
             command=self.show_main,
             bg=COLORS["DARK_GREEN"],
             fg=COLORS["WHITE"],
