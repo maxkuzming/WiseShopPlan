@@ -2,19 +2,17 @@ import tkinter as tk
 from tkinter import messagebox
 from datetime import date
 from typing import Optional
-
-from config import COLORS, FONTS
-from core.models import Product
-from services.inventory_service import InventoryService
-from services.yandex_gpt_service import YandexGPTService
+from wsp.config import COLORS, FONTS
+from wsp.core.models import Product
+from wsp.services.inventory_service import InventoryService
+from wsp.services.yandex_gpt_service import YandexGPTService
 
 
 class MainWindow:
     def __init__(self, root):
         self.root = root
         self.root.title("WiseShopPlan")
-        self.root.title
-        self.root.geometry("600x600")
+        self.root.geometry("550x550")
         self.root.resizable(False, False)
 
         # Инициализация сервисов
@@ -26,6 +24,7 @@ class MainWindow:
         self.name_frame = None
         self.ingr_frame = None
         self.inventory_frame = None
+        self._health_frame = None  # для меню на неделю
 
         # Виджеты
         self.name_entry = None
@@ -42,7 +41,6 @@ class MainWindow:
         self._create_name_search_frame()
         self._create_ingredient_search_frame()
         self._create_inventory_frame()
-
         self.show_main()
 
     def _create_main_frame(self):
@@ -184,8 +182,8 @@ class MainWindow:
         ).pack(pady=5)
 
     def _create_inventory_frame(self):
-        """Создает фрейм инвентаря"""
-        self.inventory_frame = tk.Frame(self.root, bg=COLORS["FRAME_BG"])
+        """Создает фрейм инвентаря (заглушка — используется динамически)"""
+        pass
 
     def _get_bg_color(self, expiry_str: Optional[str]) -> str:
         """Возвращает цвет фона в зависимости от срока годности"""
@@ -198,10 +196,10 @@ class MainWindow:
         return COLORS["EXPIRED"] if days is not None and days < 0 else COLORS["VALID"]
 
     def _show_health_menu(self):
-        """Показывает экран меню на неделю (Пн–Вс)"""
+        """Показывает меню на неделю в одном столбце с прокруткой"""
         self.main_frame.pack_forget()
 
-        if not hasattr(self, "_health_frame"):
+        if self._health_frame is None:
             self._health_frame = tk.Frame(self.root, bg=COLORS["FRAME_BG"])
 
             tk.Label(
@@ -212,38 +210,46 @@ class MainWindow:
                 bg=COLORS["FRAME_BG"]
             ).pack(pady=(20, 15))
 
-            # меню
+            # Canvas + Scrollbar
+            canvas = tk.Canvas(self._health_frame, bg=COLORS["FRAME_BG"], highlightthickness=0)
+            scrollbar = tk.Scrollbar(self._health_frame, orient="vertical", command=canvas.yview)
+            scrollable_frame = tk.Frame(canvas, bg=COLORS["FRAME_BG"])
+
+            scrollable_frame.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
+
+            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar.set)
+
+            canvas.pack(side="left", fill="both", expand=True)
+            scrollbar.pack(side="right", fill="y")
+
+            # Данные меню
             weekly_menu = [
-                ("Понедельник", "Овсянка с ягодами и ложкой мёда", "Суп-пюре из брокколи + куриная грудка на пару",
-                 "Творог с фруктами и орехами"),
-                ("Вторник", "Тост из цельнозернового хлеба с авокадо",
-                 "Салат из свежей капусты, моркови, с кусочком лосося", "Запечённые овощи + тофу"),
+                ("Понедельник", "Овсянка с ягодами и ложкой мёда", "Суп-пюре из брокколи + куриная грудка на пару", "Творог с фруктами и орехами"),
+                ("Вторник", "Тост из цельнозернового хлеба с авокадо", "Салат из свежей капусты, моркови, с кусочком лосося", "Запечённые овощи + тофу"),
                 ("Среда", "Гречневая каша с тыквой", "Чечевичный суп с зеленью", "Йогурт без добавок + груша"),
-                ("Четверг", "Яичница из двух яиц с помидорами и шпинатом", "Бурый рис + тушёная индейка с кабачками",
-                 "Кефир + горсть грецких орехов"),
-                ("Пятница", "Мюсли с йогуртом и бананом", "Салат из свёклы, грецких орехов и козьего сыра",
-                 "Запечённая рыба + салат из огурцов и зелени"),
-                ("Суббота", "Рисовая каша с яблоком и корицей", "Овощной суп + кусочек цельнозернового хлеба",
-                 "Творожная запеканка с ягодами"),
-                ("Воскресенье", "Омлет с овощами и зеленью", "Запечённая курица + картофель и брокколи",
-                 "Ряженка + яблоко")
+                ("Четверг", "Яичница из двух яиц с помидорами и шпинатом", "Бурый рис + тушёная индейка с кабачками", "Кефир + горсть грецких орехов"),
+                ("Пятница", "Мюсли с йогуртом и бананом", "Салат из свёклы, грецких орехов и козьего сыра", "Запечённая рыба + салат из огурцов и зелени"),
+                ("Суббота", "Рисовая каша с яблоком и корицей", "Овощной суп + кусочек цельнозернового хлеба", "Творожная запеканка с ягодами"),
+                ("Воскресенье", "Омлет с овощами и зеленью", "Запечённая курица + картофель и брокколи", "Ряженка + яблоко")
             ]
 
+            # Отображаем каждый день
             for day, breakfast, lunch, dinner in weekly_menu:
-                # для дня
-                day_frame = tk.Frame(self._health_frame, bg=COLORS["BACKGROUND"], bd=1, relief="groove")
-                day_frame.pack(pady=8, padx=10, fill="x")
+                day_frame = tk.Frame(scrollable_frame, bg=COLORS["BACKGROUND"], bd=1, relief="groove", padx=10, pady=8)
+                day_frame.pack(fill="x", pady=6)
 
-                # день заголовог
                 tk.Label(
                     day_frame,
                     text=day,
                     font=("Arial", 12, "bold"),
                     bg=COLORS["BACKGROUND"],
                     anchor="w"
-                ).pack(pady=(5, 3), padx=10, anchor="w")
+                ).pack(anchor="w", pady=(0, 5))
 
-                # пища
                 for meal, desc in [("Завтрак", breakfast), ("Обед", lunch), ("Ужин", dinner)]:
                     tk.Label(
                         day_frame,
@@ -252,12 +258,12 @@ class MainWindow:
                         bg=COLORS["BACKGROUND"],
                         anchor="w",
                         justify="left"
-                    ).pack(padx=15, pady=2, anchor="w")
+                    ).pack(anchor="w", pady=2, padx=5)
 
-            # Назад
+            # Кнопка «Назад»
             tk.Button(
                 self._health_frame,
-                text="В главное меню",
+                text="← В главное меню",
                 command=self.show_main,
                 bg=COLORS["DARK_GREEN"],
                 fg=COLORS["WHITE"],
@@ -269,7 +275,7 @@ class MainWindow:
 
     def show_main(self):
         """Показывает главное меню"""
-        for frame in [self.name_frame, self.ingr_frame, self.inventory_frame]:
+        for frame in [self.name_frame, self.ingr_frame, self.inventory_frame, self._health_frame]:
             if frame:
                 frame.pack_forget()
         self.main_frame.pack(fill="both", expand=True)
@@ -291,7 +297,7 @@ class MainWindow:
         self.main_frame.pack_forget()
         self.inventory_frame.pack(fill="both", expand=True)
 
-        # Очищаем фрейм при каждом открытии
+        # Очищаем фрейм
         for widget in self.inventory_frame.winfo_children():
             widget.destroy()
 
@@ -343,7 +349,7 @@ class MainWindow:
 
         tk.Button(
             self.inventory_frame,
-            text="В главное меню",
+            text="← В главное меню",
             command=self.show_main,
             bg=COLORS["DARK_GREEN"],
             fg=COLORS["WHITE"],
@@ -355,7 +361,7 @@ class MainWindow:
         """Показывает форму добавления продукта"""
         dialog = tk.Toplevel(self.root)
         dialog.title("Добавить продукт")
-        dialog.geometry("500x500")
+        dialog.geometry("300x180")
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
@@ -364,9 +370,7 @@ class MainWindow:
         name_entry = tk.Entry(dialog, font=("Arial", 11), width=30)
         name_entry.pack(pady=5)
 
-        tk.Label(dialog, text="Срок (ГГГГ-ММ-ДД):", font=FONTS["SMALL"]).pack(
-            pady=(5, 5)
-        )
+        tk.Label(dialog, text="Срок (ГГГГ-ММ-ДД):", font=FONTS["SMALL"]).pack(pady=(5, 5))
         expiry_entry = tk.Entry(dialog, font=("Arial", 11), width=30)
         expiry_entry.insert(0, date.today().strftime("%Y-%m-%d"))
         expiry_entry.pack(pady=5)
@@ -379,13 +383,10 @@ class MainWindow:
                 messagebox.showwarning("Ошибка", "Введите название продукта")
                 return
 
-            # Валидация даты
             if expiry:
                 temp_product = Product(name="temp", expiry_date=expiry)
                 if temp_product.days_until_expiry() is None:
-                    messagebox.showwarning(
-                        "Ошибка", "Неверный формат даты.\nПример: 2025-04-20"
-                    )
+                    messagebox.showwarning("Ошибка", "Неверный формат даты.\nПример: 2025-04-20")
                     return
 
             self.inventory_service.add_product(name, expiry or None)
@@ -406,13 +407,10 @@ class MainWindow:
         """Выполняет поиск рецепта по названию"""
         query = self.name_entry.get().strip()
         if not query:
-            messagebox.showwarning(
-                "Внимание", "Введите название блюда (например: борщ)"
-            )
+            messagebox.showwarning("Внимание", "Введите название блюда (например: борщ)")
             return
 
         self._update_text_widget(self.name_result_text, "ИИ думает...")
-
         answer = self.gpt_service.get_recipe_by_name(query)
         self._update_text_widget(self.name_result_text, answer)
 
@@ -420,13 +418,10 @@ class MainWindow:
         """Выполняет поиск рецепта по ингредиентам"""
         query = self.ingr_entry.get().strip()
         if not query:
-            messagebox.showwarning(
-                "Внимание", "Введите ингредиенты (например: яйца, помидоры)"
-            )
+            messagebox.showwarning("Внимание", "Введите ингредиенты (например: яйца, помидоры)")
             return
 
         self._update_text_widget(self.ingr_result_text, "ИИ думает...")
-
         answer = self.gpt_service.get_recipe_by_ingredients(query)
         self._update_text_widget(self.ingr_result_text, answer)
 
