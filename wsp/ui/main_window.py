@@ -204,7 +204,7 @@ class MainWindow:
 
             tk.Label(
                 self._health_frame,
-                text="🥗 Меню на неделю",
+                text="Меню на неделю",
                 font=FONTS["HEADER"],
                 fg=COLORS["PRIMARY_GREEN"],
                 bg=COLORS["FRAME_BG"]
