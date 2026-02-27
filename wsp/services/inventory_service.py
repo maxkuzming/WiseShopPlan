@@ -1,10 +1,8 @@
 from typing import List, Optional
-from core.models import Product, ProductStatus
-
+from wsp.core.models import Product, ProductStatus
 
 class InventoryService:
-    """Сервис управления инвентарем продуктов"""
-
+    """Управление инвентарем продуктов"""
     def __init__(self):
         self._inventory: List[Product] = []
         # Начальные данные
@@ -13,10 +11,10 @@ class InventoryService:
     def _load_initial_data(self):
         """Загружает начальные данные"""
         initial_products = [
-            Product("Молоко", "2025-04-20"),
-            Product("Яйца", "2025-04-18"),
-            Product("Хлеб", "2025-04-10"),
-            Product("Сыр", "2025-05-05"),
+            Product("Молоко", "2025-04-20", 1.0, "л"),
+            Product("Яйца", "2025-04-18", 10, "шт"),
+            Product("Хлеб", "2025-04-10", 1, "шт"),
+            Product("Сыр", "2025-05-05", 500, "г"),
         ]
         self._inventory = initial_products
 
@@ -24,9 +22,11 @@ class InventoryService:
         """Возвращает все продукты, отсортированные по сроку годности"""
         return sorted(self._inventory, key=lambda p: p.days_until_expiry() or 9999)
 
-    def add_product(self, name: str, expiry_date: Optional[str] = None) -> Product:
+    def add_product(self, name: str, expiry_date: Optional[str] = None,
+                  amount: Optional[float] = None, unit: Optional[str] = None) -> Product:
         """Добавляет новый продукт в инвентарь"""
-        product = Product(name=name.strip(), expiry_date=expiry_date)
+        product = Product(name=name.strip(), expiry_date=expiry_date,
+                          amount=amount, unit=unit)
         self._inventory.append(product)
         return product
 

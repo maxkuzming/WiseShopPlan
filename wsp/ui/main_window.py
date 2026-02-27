@@ -332,6 +332,8 @@ class MainWindow:
         if products:
             for product in products:
                 line = product.name
+                if product.amount is not None and product.unit:
+                    line += f" ({product.amount} {product.unit})"
                 if product.expiry_date:
                     line += f" (до {product.expiry_date})"
                 self.inventory_listbox.insert(tk.END, line)
@@ -366,7 +368,7 @@ class MainWindow:
         """Показывает форму добавления продукта"""
         dialog = tk.Toplevel(self.root)
         dialog.title("Добавить продукт")
-        dialog.geometry("300x180")
+        dialog.geometry("400x400")  # Увеличили высоту окна для новых полей
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
@@ -380,13 +382,33 @@ class MainWindow:
         expiry_entry.insert(0, date.today().strftime("%Y-%m-%d"))
         expiry_entry.pack(pady=5)
 
+        # Новые поля для количества и единиц измерения
+        tk.Label(dialog, text="Количество:", font=FONTS["SMALL"]).pack(pady=(5, 5))
+        amount_entry = tk.Entry(dialog, font=("Arial", 11), width=30)
+        amount_entry.pack(pady=5)
+
+        tk.Label(dialog, text="Единица измерения (г, мл, шт и т.д.):", font=FONTS["SMALL"]).pack(pady=(5, 5))
+        unit_entry = tk.Entry(dialog, font=("Arial", 11), width=30)
+        unit_entry.pack(pady=5)
+
         def add_product():
             name = name_entry.get().strip()
             expiry = expiry_entry.get().strip()
+            amount = amount_entry.get().strip()
+            unit = unit_entry.get().strip()
 
             if not name:
                 messagebox.showwarning("Ошибка", "Введите название продукта")
                 return
+
+            # Проверка количества
+            amount_value = None
+            if amount:
+                try:
+                    amount_value = float(amount)
+                except ValueError:
+                    messagebox.showwarning("Ошибка", "Неверное значение количества")
+                    return
 
             # Валидация даты
             if expiry:
@@ -397,7 +419,12 @@ class MainWindow:
                     )
                     return
 
-            self.inventory_service.add_product(name, expiry or None)
+            self.inventory_service.add_product(
+                name,
+                expiry or None,
+                amount_value,
+                unit if unit else None
+            )
             self.show_inventory()
             dialog.destroy()
 
