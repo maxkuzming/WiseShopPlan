@@ -11,6 +11,8 @@ COLORS = {
     "BUTTON_GREEN": "#8fbc8f",
     "ACTIVE_GREEN": "#4CAF50",
     "DARK_GREEN": "#556b2f",
+    "DARK_RED": "#D32F2F",
+    "DARK_BLUE": "#1E88E5",
     "WHITE": "white",
     "BACKGROUND": "#f9f9f9",
     "EXPIRED": "#ffcccc",
