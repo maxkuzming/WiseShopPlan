@@ -7,6 +7,11 @@ from wsp.core.models import Product
 from wsp.services.inventory_service import InventoryService
 from wsp.services.yandex_gpt_service import YandexGPTService
 
+# Исправление: убираем пробелы из значений в COLORS (чтобы Tkinter не ругался)
+for key in list(COLORS.keys()):
+    if isinstance(COLORS[key], str):
+        COLORS[key] = COLORS[key].strip()
+
 
 class MainWindow:
     def __init__(self, root):
@@ -306,12 +311,14 @@ class MainWindow:
         for widget in self.inventory_frame.winfo_children():
             widget.destroy()
 
+        # Подпись для раздела
         tk.Label(
             self.inventory_frame,
-            text="Инвентарь",
-            font=FONTS["HEADER"],
+            text="Список продуктов:",
+            font=FONTS["SMALL"],
             bg=COLORS["FRAME_BG"],
-        ).pack(pady=(20, 15))
+            fg=COLORS["PRIMARY_GREEN"]
+        ).pack(pady=(5, 5), anchor="w", padx=10)
 
         listbox_frame = tk.Frame(self.inventory_frame, bg=COLORS["FRAME_BG"])
         listbox_frame.pack(pady=10)
@@ -344,15 +351,48 @@ class MainWindow:
         else:
             self.inventory_listbox.insert(tk.END, "Пусто")
 
-        tk.Button(
+        # Подпись для управления
+        tk.Label(
             self.inventory_frame,
+            text="Управление продуктами:",
+            font=FONTS["SMALL"],
+            bg=COLORS["FRAME_BG"],
+            fg=COLORS["PRIMARY_GREEN"]
+        ).pack(pady=(10, 5), anchor="w", padx=10)
+
+        # Кнопки управления
+        button_frame = tk.Frame(self.inventory_frame, bg=COLORS["FRAME_BG"])
+        button_frame.pack(pady=5, fill="x", padx=10)
+
+        tk.Button(
+            button_frame,
             text="Добавить продукт",
             command=self._show_add_product_form,
             bg=COLORS["ACTIVE_GREEN"],
             fg=COLORS["WHITE"],
             font=("Arial", 10, "bold"),
             width=20,
-        ).pack(pady=10)
+        ).pack(side="left", padx=5)
+
+        tk.Button(
+            button_frame,
+            text="Изменить продукт",
+            command=self._edit_product,
+            bg=COLORS["DARK_BLUE"],
+            fg=COLORS["WHITE"],
+            font=("Arial", 10, "bold"),
+            width=20,
+        ).pack(side="left", padx=5)
+
+        tk.Button(
+            button_frame,
+            text="Удалить продукт",
+            command=self._delete_product,
+            bg=COLORS["DARK_RED"],
+            fg=COLORS["WHITE"],
+            font=("Arial", 10, "bold"),
+            width=20,
+        ).pack(side="left", padx=5)
 
         tk.Button(
             self.inventory_frame,
@@ -364,11 +404,122 @@ class MainWindow:
             width=20,
         ).pack(pady=5)
 
+    def _delete_product(self):
+        """Удаляет выбранный продукт из инвентаря"""
+        selected = self.inventory_listbox.curselection()
+        if not selected:
+            messagebox.showwarning("Ошибка", "Выберите продукт для удаления")
+            return
+
+        index = selected[0]
+        if self.inventory_service.remove_product(index):
+            self.show_inventory()  # Обновляем список
+        else:
+            messagebox.showerror("Ошибка", "Не удалось удалить продукт")
+
+    def _edit_product(self):
+        """Редактирует выбранный продукт"""
+        selected = self.inventory_listbox.curselection()
+        if not selected:
+            messagebox.showwarning("Ошибка", "Выберите продукт для редактирования")
+            return
+
+        index = selected[0]
+        products = self.inventory_service.get_all_products()
+        if 0 <= index < len(products):
+            product = products[index]
+            self._show_edit_product_form(index, product)
+        else:
+            messagebox.showerror("Ошибка", "Неверный индекс продукта")
+
+    def _show_edit_product_form(self, index: int, product: Product):
+        """Показывает форму редактирования продукта"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Изменить продукт")
+        dialog.geometry("400x400")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        tk.Label(dialog, text="Название:", font=FONTS["SMALL"]).pack(pady=(15, 5))
+        name_entry = tk.Entry(dialog, font=("Arial", 11), width=30)
+        name_entry.pack(pady=5)
+        name_entry.insert(0, product.name)
+
+        tk.Label(dialog, text="Срок (ГГГГ-ММ-ДД):", font=FONTS["SMALL"]).pack(pady=(5, 5))
+        expiry_entry = tk.Entry(dialog, font=("Arial", 11), width=30)
+        expiry_entry.pack(pady=5)
+        if product.expiry_date:
+            expiry_entry.insert(0, product.expiry_date)
+
+        tk.Label(dialog, text="Количество:", font=FONTS["SMALL"]).pack(pady=(5, 5))
+        amount_entry = tk.Entry(dialog, font=("Arial", 11), width=30)
+        amount_entry.pack(pady=5)
+        if product.amount is not None:
+            amount_entry.insert(0, str(product.amount))
+
+        tk.Label(dialog, text="Единица измерения (г, мл, шт и т.д.):", font=FONTS["SMALL"]).pack(pady=(5, 5))
+        unit_entry = tk.Entry(dialog, font=("Arial", 11), width=30)
+        unit_entry.pack(pady=5)
+        if product.unit:
+            unit_entry.insert(0, product.unit)
+
+        def save_changes():
+            name = name_entry.get().strip()
+            expiry = expiry_entry.get().strip()
+            amount = amount_entry.get().strip()
+            unit = unit_entry.get().strip()
+
+            if not name:
+                messagebox.showwarning("Ошибка", "Введите название продукта")
+                return
+
+            # Проверка количества
+            amount_value = None
+            if amount:
+                try:
+                    amount_value = float(amount)
+                except ValueError:
+                    messagebox.showwarning("Ошибка", "Неверное значение количества")
+                    return
+
+            # Валидация даты
+            if expiry:
+                temp_product = Product(name="temp", expiry_date=expiry)
+                if temp_product.days_until_expiry() is None:
+                    messagebox.showwarning(
+                        "Ошибка", "Неверный формат даты.\nПример: 2025-04-20"
+                    )
+                    return
+
+            # Обновляем продукт
+            if self.inventory_service.update_product(
+                    index,
+                    name,
+                    expiry or None,
+                    amount_value,
+                    unit if unit else None
+            ):
+                self.show_inventory()
+                dialog.destroy()
+            else:
+                messagebox.showerror("Ошибка", "Не удалось обновить продукт")
+
+        tk.Button(
+            dialog,
+            text="Сохранить",
+            command=save_changes,
+            bg=COLORS["ACTIVE_GREEN"],
+            fg=COLORS["WHITE"],
+            font=("Arial", 10, "bold"),
+            width=15,
+        ).pack(pady=15)
+
     def _show_add_product_form(self):
         """Показывает форму добавления продукта"""
         dialog = tk.Toplevel(self.root)
         dialog.title("Добавить продукт")
-        dialog.geometry("400x400")  # Увеличили высоту окна для новых полей
+        dialog.geometry("400x400")
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
