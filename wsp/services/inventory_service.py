@@ -32,7 +32,7 @@ class InventoryService:
         self._inventory.append(product)
         return product
 
-    # НОВЫЙ МЕТОД ДЛЯ ОБНОВЛЕНИЯ ПРОДУКТА
+    # ОБНОВЛЕНИЯ ПРОДУКТА ЗАСЛУЖИЛ УПОМИНАНИЯ
     def update_product(self, index: int, name: str, expiry_date: Optional[str] = None,
                        amount: Optional[float] = None, unit: Optional[str] = None) -> bool:
         """Обновляет продукт в инвентаре по индексу"""
